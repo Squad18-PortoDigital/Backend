@@ -4,19 +4,17 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 class UserManager(BaseUserManager):
-    def create_user(self, username, email, cpf, password=None):
-        if not email:
-            raise ValueError("O email é obrigatório")
-        if not cpf:
-            raise ValueError("O CPF é obrigatório")
-        
-        user = self.model(username=username, email=self.normalize_email(email), cpf=cpf)
+    def create_user(self, username, matricula, password=None):
+        if not matricula:
+            raise ValueError("A matrícula é obrigatória")
+
+        user = self.model(username=username, matricula=matricula)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, email, cpf, password):
-        user = self.create_user(username, email, cpf, password)
+    def create_superuser(self, username, matricula, password):
+        user = self.create_user(username, matricula, password)
         user.is_staff = True
         user.is_superuser = True
         user.save(using=self._db)
@@ -24,8 +22,8 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True)
-    email = models.EmailField(unique=True)
-    cpf = models.CharField(max_length=14, unique=True)
+    matricula = models.CharField(max_length=20, unique=True)  # Matricula substituindo CPF/ Perguntar tamanho da matricula/ 
+    email = models.EmailField(unique=True, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -33,11 +31,12 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     objects = UserManager()
 
-    USERNAME_FIELD = 'email'  # Login será pelo email
-    REQUIRED_FIELDS = ['username', 'cpf']
+    USERNAME_FIELD = 'matricula'  # Agora o login será pela matrícula
+    REQUIRED_FIELDS = ['username']
 
     def __str__(self):
         return self.username
+
 
 
 
