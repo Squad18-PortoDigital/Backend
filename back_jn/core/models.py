@@ -53,6 +53,17 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.level}"
+    
+
+class Video(models.Model):
+    titulo = models.CharField(max_length=255)
+    duracao = models.DurationField()
+    link = models.URLField()
+    descricao = models.TextField(blank=True, null=True)
+    legenda = models.TextField(blank=True, null=True)
+    id_quiz = models.ForeignKey('Quiz', on_delete=models.CASCADE, related_name='videos')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 # Criar automaticamente um perfil ao criar um usuário
 @receiver(post_save, sender=User)
