@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Profile
+from .models import User, Profile, Video
 from django.contrib.auth import get_user_model
 
 class UserSerializer(serializers.ModelSerializer):
@@ -40,3 +40,9 @@ class ProfileSerializer(serializers.ModelSerializer):
         # Se não existir, cria normalmente
         profile = Profile.objects.create(user=user, **validated_data)
         return profile
+
+
+class VideoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Video
+        fields = '__all__'

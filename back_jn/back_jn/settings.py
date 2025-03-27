@@ -131,3 +131,13 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
+
+
+# Configurações do Amazon S3 e keys
+#isso nao é seguro, mas é para fins de estudo!!!!!!!!!!!
+AWS_ACCESS_KEY_ID = 'AKIAYKN45N4R7CQIRDV7'
+AWS_SECRET_ACCESS_KEY = "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"
+AWS_STORAGE_BUCKET_NAME = 'jotanunes-videos'
+AWS_REGION_NAME = 'us-east-2'
+
+OPENAI_API_KEY = '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'

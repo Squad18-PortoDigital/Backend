@@ -59,3 +59,28 @@ class Profile(models.Model):
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
+
+
+class Video(models.Model):
+    titulo = models.CharField(max_length=255)
+    duracao = models.DurationField(blank=True, null=True)  # Você pode preencher depois
+    link = models.URLField()  # URL do S3
+    legenda = models.TextField(blank=True, null=True)
+    transcricao = models.JSONField(blank=True, null=True)  # Transcrição completa da AWS
+    id_quiz = models.IntegerField(blank=True, null=True)  # FK pode vir depois
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.titulo
+
+#talvez o quiz pudesse ter o id da trilha pra facilitar geracao do quiz final
+#mudei um pouco a estrutura  se o pessoal do banco n topar refaço
+
+class Quiz(models.Model):
+    video = models.OneToOneField(Video, on_delete=models.CASCADE, related_name="quiz")
+    perguntas = models.JSONField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Quiz para: {self.video.titulo}"
