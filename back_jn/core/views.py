@@ -1,14 +1,14 @@
 #TODO: Separar em arquivos diferentes essa view esta muito grande criar pasta views e separar em arquivos
 from rest_framework import viewsets,permissions
-from .models import User, Profile, Video, Quiz
-from .serializers import UserSerializer, ProfileSerializer, VideoSerializer
+from .models import User, Profile, Video, Quiz, Certificado
+from .serializers import UserSerializer, ProfileSerializer, VideoSerializer, CertificadoSerializer
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
-from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt
+from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt, gerar_certificado
 import json
 
 """Usuario, perfil e permissões"""
@@ -142,3 +142,12 @@ class UploadVideoView(APIView):
             "link": novo_video.link,
             "transcricao": transcricao_json['results']['transcripts'][0]['transcript'] if transcricao_json else "Falha na transcrição"
         })
+
+class CertificadoViewSet(viewsets.ModelViewSet):
+    queryset = Certificado.objects.all()
+    serializer_class = CertificadoSerializer
+
+    @action(detail=True, methods=['get'])
+    def baixar_pdf(self, request, pk=None):
+        certificado = self.get_object()
+        return gerar_certificado(certificado)
