@@ -84,3 +84,13 @@ class Quiz(models.Model):
 
     def __str__(self):
         return f"Quiz para: {self.video.titulo}"
+
+
+class Certificado(models.Model):
+    token = models.CharField(max_length=255, unique=True)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='certificados')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Certificado de {self.usuario.username} - Token: {self.token}"
