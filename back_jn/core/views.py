@@ -3,7 +3,7 @@ from rest_framework import viewsets,permissions
 from .models import User, Profile, Video, Quiz
 from .serializers import UserSerializer, ProfileSerializer, VideoSerializer
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -56,6 +56,43 @@ class VideoViewSet(viewsets.ModelViewSet):
     queryset = Video.objects.all()
     serializer_class = VideoSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+    @action(detail=False, methods=['post'], url_path='add-youtube-video', permission_classes=[IsAuthenticated])
+    def add_youtube_video(self, request):
+        youtube_link = request.data.get('link')
+        titulo = request.data.get('titulo', 'Vídeo do YouTube')
+
+        # Validação do link do YouTube
+        if not youtube_link or "youtube.com" not in youtube_link:
+            raise ValidationError({"error": "Forneça um link válido do YouTube."})
+
+        # Criar o vídeo no banco
+        video = Video.objects.create(titulo=titulo, link=youtube_link)
+
+        # Obter transcrição
+        transcricao = start_transcription_job(youtube_link)
+        if transcricao:
+            video.transcricao = transcricao
+            video.save()
+
+        # Gerar quiz
+        try:
+            quiz_raw = generate_quiz_gpt(transcricao['results']['transcripts'][0]['transcript'])
+            quiz_json = json.loads(quiz_raw)
+            Quiz.objects.create(video=video, perguntas=quiz_json)
+        except Exception as e:
+            return Response({"error": f"Erro ao gerar quiz: {str(e)}"}, status=500)
+
+        return Response({
+            "mensagem": "Vídeo adicionado com sucesso!",
+            "video": {
+                "id": video.id,
+                "titulo": video.titulo,
+                "link": video.link,
+                "transcricao": transcricao['results']['transcripts'][0]['transcript'] if transcricao else None
+            },
+            "quiz": quiz_json
+        }, status=201)
 
     @action(detail=True, methods=['get'], url_path='transcricao')
     def get_transcricao(self, request, pk=None):
