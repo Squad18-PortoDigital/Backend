@@ -86,6 +86,41 @@ class Quiz(models.Model):
         return f"Quiz para: {self.video.titulo}"
 
 
+class Trilha(models.Model):
+    titulo = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.titulo
+
+
+class Modulo(models.Model):
+    titulo = models.CharField(max_length=255)
+    trilha = models.ForeignKey(Trilha, on_delete=models.CASCADE, related_name='modulos')
+
+    def __str__(self):
+        return self.titulo
+
+class ModuloVideo(models.Model):
+    modulo = models.ForeignKey(Modulo, on_delete=models.CASCADE)
+    video = models.ForeignKey(Video, on_delete=models.CASCADE)
+
+
+class UsuarioTrilha(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    trilha = models.ForeignKey(Trilha, on_delete=models.CASCADE)
+
+
+class Vizualizado(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    video = models.ForeignKey(Video, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AvancoVideo(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    video = models.ForeignKey(Video, on_delete=models.CASCADE)
+    finalizado = models.BooleanField(default=False)
+
 class Certificado(models.Model):
     token = models.CharField(max_length=255, unique=True)
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='certificados')
