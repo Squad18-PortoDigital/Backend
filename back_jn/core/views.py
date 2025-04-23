@@ -1,6 +1,6 @@
 #TODO: Separar em arquivos diferentes essa view esta muito grande criar pasta views e separar em arquivos
 from rest_framework import viewsets,permissions
-from .models import User, Profile, Video, Quiz, Certificado
+from .models import User, Profile, Video, Quiz, Certificado, UsuarioTrilha
 from .serializers import UserSerializer, ProfileSerializer, VideoSerializer, CertificadoSerializer
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.exceptions import PermissionDenied
@@ -8,7 +8,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
-from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt, gerar_certificado
+from django.http import FileResponse
+from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt, gerar_certificado, montar_dados_certificado, usuario_concluiu_trilha
 import json
 
 """Usuario, perfil e permissões"""
@@ -147,7 +148,25 @@ class CertificadoViewSet(viewsets.ModelViewSet):
     queryset = Certificado.objects.all()
     serializer_class = CertificadoSerializer
 
-    @action(detail=True, methods=['get'])
-    def baixar_pdf(self, request, pk=None):
-        certificado = self.get_object()
-        return gerar_certificado(certificado)
+    @action(detail=False, methods=['get'], url_path='baixar_pdf')
+    def baixar_pdf(self, request):
+        usuario = request.user
+        usuario_trilha = UsuarioTrilha.objects.filter(usuario=usuario).first()
+
+        if not usuario_trilha:
+            return Response({'erro': 'Usuário não está vinculado a nenhuma trilha.'}, status=404)
+
+        trilha = usuario_trilha.trilha
+
+        if not usuario_concluiu_trilha(usuario, trilha):
+            return Response({'erro': 'Você ainda não concluiu todos os vídeos da trilha.'}, status=403)
+
+        dados = montar_dados_certificado(usuario)
+
+        return gerar_certificado(
+            nome_aluno=dados['nome_aluno'],
+            nome_curso=dados['nome_curso'],
+            carga_horaria=dados['carga_horaria'],
+            data_inicio=dados['data_inicio'],
+            data_conclusão=dados['data_fim']
+        )
