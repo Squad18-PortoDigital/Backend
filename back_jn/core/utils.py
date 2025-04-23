@@ -4,6 +4,10 @@ import uuid
 import requests
 from openai import OpenAI
 from django.conf import settings
+from datetime import datetime
+from .models import UsuarioTrilha, Modulo, ModuloVideo, Video, Vizualizado, AvancoVideo
+from django.db.models import Sum
+from django.utils.timezone import now
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.colors import black, HexColor
@@ -93,6 +97,43 @@ Responda **somente** com um JSON válido. **Não adicione explicações, título
     )
 
     return response.choices[0].message.content.strip()
+
+def montar_dados_certificado(usuario):
+    usuario_trilha = UsuarioTrilha.objects.filter(id_usuario=usuario).first()
+    if not usuario_trilha:
+        return None
+
+    trilha = usuario_trilha.id_trilha
+
+    nome_curso = trilha.titulo
+
+    nome_aluno = usuario.nome
+
+    modulos_ids = Modulo.objects.filter(id_trilha=trilha.id).values_list('id', flat=True)
+    videos_ids = ModuloVideo.objects.filter(id_modulo__in=modulos_ids).values_list('id_video', flat=True)
+    carga_horaria = Video.objects.filter(id__in=videos_ids).aggregate(total=Sum('duracao'))['total'] or 0
+
+    data_inicio = Vizualizado.objects.filter(id_usuario=usuario).order_by('created_at').first()
+    data_inicio = data_inicio.created_at if data_inicio else None
+
+    data_fim = now()
+
+    return {
+        'nome_aluno': nome_aluno,
+        'nome_curso': nome_curso,
+        'carga_horaria': f"{carga_horaria} horas",
+        'data_inicio': data_inicio.strftime('%d/%m/%Y') if data_inicio else "N/A",
+        'data_fim': data_fim.strftime('%d/%m/%Y')
+    }
+
+def usuario_concluiu_trilha(usuario, trilha):
+    modulos_ids = Modulo.objects.filter(trilha=trilha).values_list('id', flat=True)
+    videos_ids = ModuloVideo.objects.filter(modulo__in=modulos_ids).values_list('video', flat=True)
+
+    finalizados = AvancoVideo.objects.filter(usuario=usuario, video__in=videos_ids, finalizado=True).count()
+    total_videos = len(videos_ids)
+
+    return finalizados == total_videos
 
 
 def gerar_certificado(nome_aluno, nome_curso, carga_horaria, data_inicio, data_conclusão):
