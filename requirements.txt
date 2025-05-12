@@ -4,6 +4,7 @@ asgiref==3.8.1
 boto3==1.37.20
 botocore==1.37.20
 certifi==2025.1.31
+chardet==5.2.0
 charset-normalizer==3.4.1
 colorama==0.4.6
 distro==1.9.0
@@ -17,10 +18,13 @@ idna==3.10
 jiter==0.9.0
 jmespath==1.0.1
 openai==1.68.2
+pillow==11.2.1
+psycopg2-binary==2.9.10
 pydantic==2.10.6
 pydantic_core==2.27.2
 PyJWT==2.9.0
 python-dateutil==2.9.0.post0
+reportlab==4.4.0
 requests==2.32.3
 s3transfer==0.11.4
 six==1.17.0

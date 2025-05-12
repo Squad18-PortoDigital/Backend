@@ -75,12 +75,51 @@ WSGI_APPLICATION = 'back_jn.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+import sys
+
+# Detecta se estamos rodando “manage.py test”
+TESTING = 'test' in sys.argv
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+        'ENGINE':   'django.db.backends.postgresql',
+        'NAME':     'postgres',
+        'USER':     'postgres.izyxzlthhlkryttmfzga',
+        'PASSWORD': 'yY6sE2weOj2DtYiG',
+        'HOST':     'aws-0-us-east-1.pooler.supabase.com',
+        'PORT':     '6543',
+        'TEST': {
+            'NAME': 'test_postgres',
+        },
+        'OPTIONS': {
+            # Aqui você inclui **todas** as schemas com tabelas de negócio
+            'options': '-c search_path=aprendizagem,auth,certificado,gamific,premios,progresso,public,realtime,storage,usuario'
+        },
+    },
+    # DB extra só para inspectdb
+    'introspect': {
+        'ENGINE':   'django.db.backends.postgresql',
+        'NAME':     'postgres',
+        'USER':     'postgres.izyxzlthhlkryttmfzga',
+        'PASSWORD': 'yY6sE2weOj2DtYiG',
+        'HOST':     'aws-0-us-east-1.pooler.supabase.com',
+        'PORT':     '6543',
+        'OPTIONS': {
+            'options': '-c search_path=aprendizagem,auth,certificado,gamific,premios,progresso,public,realtime,storage,usuario'
+        },
+    },
 }
+
+if TESTING:
+    # usa sqlite in-memory nos testes
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+    # força syncdb para o app core (sem migrações)
+    MIGRATION_MODULES = {
+        'core': None,
+    }
 
 
 # Password validation

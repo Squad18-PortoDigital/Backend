@@ -1,86 +1,349 @@
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+import sys
+from django.conf import settings
 from django.db import models
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+# detecta se estamos rodando "manage.py test"
+TESTING = 'test' in sys.argv
+
+
+#
+# ─── USUÁRIO (schema: usuario) ────────────────────────────────────────────
+#
 class UserManager(BaseUserManager):
-    def create_user(self, username, matricula, password=None):
+    def create_user(self, matricula, password=None):
         if not matricula:
             raise ValueError("A matrícula é obrigatória")
-
-        user = self.model(username=username, matricula=matricula)
-        user.set_password(password)
+        user = self.model(matricula=matricula)
+        if password:
+            user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, matricula, password):
-        user = self.create_user(username, matricula, password)
-        user.is_staff = True
+    def create_superuser(self, matricula, password):
+        user = self.create_user(matricula, password)
         user.is_superuser = True
-        user.save(using=self._db)
+        user.is_staff = True
         return user
+
 
 class User(AbstractBaseUser, PermissionsMixin):
-    username = models.CharField(max_length=150, unique=True)
-    matricula = models.CharField(max_length=20, unique=True)  # Matricula substituindo CPF/ Perguntar tamanho da matricula/ 
-    email = models.EmailField(unique=True, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    id         = models.AutoField(primary_key=True, db_column='id')
+    matricula  = models.CharField(max_length=255, unique=True, db_column='matricula')
+    password   = models.TextField(db_column='senha')
+    token      = models.TextField(null=True, blank=True, db_column='token')
+    is_active  = models.BooleanField(db_column='is_active')
+    is_staff   = models.BooleanField(db_column='is_staff')
+    is_superuser = models.BooleanField(db_column='is_superuser')
+    last_login   = models.DateTimeField(null=True, blank=True, db_column='last_login')
+    created_at = models.DateTimeField(null=True, blank=True, db_column='createdat')
+    updated_at = models.DateTimeField(null=True, blank=True, db_column='updatedat')
 
     objects = UserManager()
 
-    USERNAME_FIELD = 'matricula'  # Agora o login será pela matrícula
-    REQUIRED_FIELDS = ['username']
+    USERNAME_FIELD = 'matricula'
+    REQUIRED_FIELDS = []
+
+    class Meta:
+        db_table = 'usuarios' if TESTING else '"usuario"."usuarios"'
+        managed  = TESTING
 
     def __str__(self):
-        return self.username
+        return self.matricula
 
 
+class Perfil(models.Model):
+    id    = models.AutoField(primary_key=True, db_column='id')
+    nivel = models.CharField(max_length=20, db_column='nivel')
+    area  = models.TextField(null=True, blank=True, db_column='area')
 
-
-class Profile(models.Model):
-    LEVEL_CHOICES = [
-        ('admin', 'Administrador'),
-        ('instrutor', 'Instrutor'),
-        ('aluno', 'Aluno'),
-    ]
-    
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='aluno')
-    area = models.CharField(max_length=255, blank=True, null=True)
+    class Meta:
+        db_table = 'perfis' if TESTING else '"usuario"."perfis"'
+        managed  = TESTING
 
     def __str__(self):
-        return f"{self.user.username} - {self.level}"
+        return self.nivel
 
-# Criar automaticamente um perfil ao criar um usuário
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
+
+class UsuarioPerfil(models.Model):
+    id       = models.AutoField(primary_key=True, db_column='id')
+    usuario  = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        db_column='idusuario', related_name='perfil_legacy'
+    )
+    perfil   = models.ForeignKey(
+        Perfil, on_delete=models.CASCADE,
+        db_column='idperfil', related_name='vinculos'
+    )
+
+    class Meta:
+        db_table = 'usuarioperfil' if TESTING else '"usuario"."usuarioperfil"'
+        managed  = TESTING
+
+    def __str__(self):
+        return f"{self.usuario.matricula} → {self.perfil.nivel}"
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def criar_usuario_perfil_legacy(sender, instance, created, **kwargs):
     if created:
-        Profile.objects.create(user=instance)
+        perfil_default, _ = Perfil.objects.get_or_create(
+            nivel='aluno', defaults={'area': ''}
+        )
+        UsuarioPerfil.objects.create(usuario=instance, perfil=perfil_default)
 
 
-class Video(models.Model):
-    titulo = models.CharField(max_length=255)
-    duracao = models.DurationField(blank=True, null=True)  # Você pode preencher depois
-    link = models.URLField()  # URL do S3
-    legenda = models.TextField(blank=True, null=True)
-    transcricao = models.JSONField(blank=True, null=True)  # Transcrição completa da AWS
-    id_quiz = models.IntegerField(blank=True, null=True)  # FK pode vir depois
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+#
+# ─── APRENDIZAGEM (schema: aprendizagem) ────────────────────────────────────────
+#
+class Trilha(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    titulo     = models.TextField(db_column='titulo')
+    created_at = models.DateTimeField(db_column='createdat')
+    updated_at = models.DateTimeField(db_column='updatedat')
+
+    class Meta:
+        db_table = 'trilhas' if TESTING else '"aprendizagem"."trilhas"'
+        managed  = TESTING
 
     def __str__(self):
         return self.titulo
 
-#talvez o quiz pudesse ter o id da trilha pra facilitar geracao do quiz final
-#mudei um pouco a estrutura  se o pessoal do banco n topar refaço
 
-class Quiz(models.Model):
-    video = models.OneToOneField(Video, on_delete=models.CASCADE, related_name="quiz")
-    perguntas = models.JSONField()
-    criado_em = models.DateTimeField(auto_now_add=True)
+class Modulo(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    titulo     = models.TextField(db_column='titulo')
+    descricao  = models.TextField(db_column='descricao', blank=True, null=True)
+    trilha     = models.ForeignKey(
+        Trilha, on_delete=models.CASCADE,
+        related_name='modulos', db_column='idtrilha'
+    )
+    created_at = models.DateTimeField(db_column='createdat')
+    updated_at = models.DateTimeField(db_column='updatedat')
+
+    class Meta:
+        db_table = 'modulos' if TESTING else '"aprendizagem"."modulos"'
+        managed  = TESTING
 
     def __str__(self):
-        return f"Quiz para: {self.video.titulo}"
+        return f"{self.trilha.titulo} • {self.titulo}"
+
+
+class VideoAprendizagem(models.Model):
+    id          = models.IntegerField(primary_key=True, db_column='id')
+    titulo      = models.TextField(db_column='titulo')
+    descricao   = models.TextField(db_column='descricao', blank=True, null=True)
+    link        = models.TextField(db_column='link')
+    legenda     = models.TextField(db_column='legenda', blank=True, null=True)
+    duracao     = models.DurationField(db_column='duracao', blank=True, null=True)
+    hql         = models.TextField(db_column='hql', blank=True, null=True)
+    created_at  = models.DateTimeField(db_column='createdat')
+    updated_at  = models.DateTimeField(db_column='updatedat')
+
+    class Meta:
+        db_table = 'videos' if TESTING else '"aprendizagem"."videos"'
+        managed  = TESTING
+
+    def __str__(self):
+        return self.titulo
+
+
+class QuizAprendizagem(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    questions  = models.JSONField(db_column='questions')
+    responses  = models.JSONField(db_column='responses')
+
+    class Meta:
+        db_table = 'quizzes' if TESTING else '"aprendizagem"."quizzes"'
+        managed  = TESTING
+
+    def __str__(self):
+        return f"Quiz #{self.id}"
+
+
+class ModuloVideo(models.Model):
+    id      = models.IntegerField(primary_key=True, db_column='id')
+    modulo  = models.ForeignKey(
+        Modulo, on_delete=models.CASCADE,
+        related_name='videos', db_column='idmodulo'
+    )
+    video   = models.ForeignKey(
+        VideoAprendizagem, on_delete=models.CASCADE,
+        related_name='modulos_video', db_column='idvideo'
+    )
+
+    class Meta:
+        db_table = 'modulovideo' if TESTING else '"aprendizagem"."modulovideo"'
+        managed  = TESTING
+        unique_together = (('modulo', 'video'),)
+
+    def __str__(self):
+        return f"{self.modulo.titulo} → {self.video.titulo}"
+
+
+class UsuarioTrilhaAprendizagem(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    usuario    = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='trilhas_usuario', db_column='idusuario'
+    )
+    trilha     = models.ForeignKey(
+        Trilha, on_delete=models.CASCADE,
+        related_name='usuarios_trilha', db_column='idtrilha'
+    )
+    inscrito_em = models.DateTimeField(db_column='inscritoem')
+
+    class Meta:
+        db_table = 'usuariotrilha' if TESTING else '"aprendizagem"."usuariotrilha"'
+        managed  = TESTING
+        unique_together = (('usuario', 'trilha'),)
+
+    def __str__(self):
+        return f"{self.usuario} inscrito em {self.trilha}"
+
+
+#
+# ─── CERTIFICADO (schema: certificado) ─────────────────────────────────────────
+#
+class Certificado(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    token      = models.TextField(db_column='token')
+    usuario    = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        db_column='idusuario'
+    )
+    created_at = models.DateTimeField(db_column='createdat')
+    updated_at = models.DateTimeField(db_column='updatedat')
+
+    class Meta:
+        db_table = 'certificados' if TESTING else '"certificado"."certificados"'
+        managed  = TESTING
+
+    def __str__(self):
+        return f"Certificado {self.id} de {self.usuario}"
+
+
+#
+# ─── GAMIFIC (schema: gamific) ────────────────────────────────────────────────
+#
+class ConquistaModule(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    idmodulo   = models.IntegerField(db_column='idmodulo')
+    pontuacao  = models.IntegerField(db_column='pontuacao')
+    tipo       = models.TextField(db_column='tipo')
+    descricao  = models.TextField(db_column='descricao')
+
+    class Meta:
+        db_table = 'conquistas_module' if TESTING else '"gamific"."conquistas_module"'
+        managed  = TESTING
+
+
+class ConquistaQuiz(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    idquiz     = models.IntegerField(db_column='idquiz')
+    pontuacao  = models.IntegerField(db_column='pontuacao')
+    tipo       = models.TextField(db_column='tipo')
+    descricao  = models.TextField(db_column='descricao')
+
+    class Meta:
+        db_table = 'conquistas_quiz' if TESTING else '"gamific"."conquistas_quiz"'
+        managed  = TESTING
+
+
+class ConquistaTrilha(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    idtrilha   = models.IntegerField(db_column='idtrilha')
+    pontuacao  = models.IntegerField(db_column='pontuacao')
+    tipo       = models.TextField(db_column='tipo')
+    descricao  = models.TextField(db_column='descricao')
+
+    class Meta:
+        db_table = 'conquistas_trilhas' if TESTING else '"gamific"."conquistas_trilhas"'
+        managed  = TESTING
+
+
+class Ponto(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    idusuario  = models.IntegerField(db_column='idusuario')
+    qtd        = models.IntegerField(db_column='qtd')
+
+    class Meta:
+        db_table = 'pontos' if TESTING else '"gamific"."pontos"'
+        managed  = TESTING
+
+
+#
+# ─── PREMIOS (schema: premios) ────────────────────────────────────────────────
+#
+class Recompensa(models.Model):
+    id         = models.IntegerField(primary_key=True, db_column='id')
+    valor      = models.IntegerField(db_column='valor')
+    descricao  = models.TextField(db_column='descricao')
+
+    class Meta:
+        db_table = 'recompensas' if TESTING else '"premios"."recompensas"'
+        managed  = TESTING
+
+    def __str__(self):
+        return f"{self.descricao} ({self.valor})"
+
+
+class Resgate(models.Model):
+    id           = models.IntegerField(primary_key=True, db_column='id')
+    idusuario    = models.IntegerField(db_column='idusuario')
+    idrecompensa = models.IntegerField(db_column='idrecompensa')
+    dataresgate  = models.DateTimeField(db_column='dataresgate')
+
+    class Meta:
+        db_table = 'resgates' if TESTING else '"premios"."resgates"'
+        managed  = TESTING
+
+
+#
+# ─── PROGRESSO (schema: progresso) ────────────────────────────────────────────
+#
+class AvancoVideo(models.Model):
+    idusuario    = models.IntegerField(db_column='idusuario')
+    idvideo      = models.IntegerField(db_column='idvideo')
+    momentoatual = models.DurationField(db_column='momentoatual')
+    finalizado   = models.BooleanField(db_column='finalizado')
+
+    class Meta:
+        db_table = 'avancosvideo' if TESTING else '"progresso"."avancosvideo"'
+        managed  = TESTING
+
+
+class TentativaQuiz(models.Model):
+    id            = models.IntegerField(primary_key=True, db_column='id')
+    idusuario     = models.IntegerField(db_column='idusuario')
+    idquiz        = models.IntegerField(db_column='idquiz')
+    tentativaatual= models.IntegerField(db_column='tentativaatual')
+    pontuacao     = models.DecimalField(max_digits=10, decimal_places=2, db_column='pontuacao')
+    tempotentativa= models.DurationField(db_column='tempotentativa')
+
+    class Meta:
+        db_table = 'tentativasquizzes' if TESTING else '"progresso"."tentativasquizzes"'
+        managed  = TESTING
+
+
+class HistoricoTentativa(models.Model):
+    id                = models.IntegerField(primary_key=True, db_column='id')
+    idtentativaquiz   = models.IntegerField(db_column='idtentativaquiz')
+    pontuacao         = models.DecimalField(max_digits=10, decimal_places=2, db_column='pontuacao')
+    tempotentativa    = models.DurationField(db_column='tempotentativa')
+
+    class Meta:
+        db_table = 'historicotentativas' if TESTING else '"progresso"."historicotentativas"'
+        managed  = TESTING
+
+
+class Visualizado(models.Model):
+    idusuario    = models.IntegerField(db_column='idusuario')
+    idvideo      = models.IntegerField(db_column='idvideo')
+    created_at   = models.DateTimeField(db_column='createdat')
+
+    class Meta:
+        db_table = 'visualizados' if TESTING else '"progresso"."visualizados"'
+        managed  = TESTING
