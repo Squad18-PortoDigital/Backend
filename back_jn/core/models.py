@@ -1,4 +1,6 @@
 import sys
+import uuid
+from django.utils import timezone
 from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -8,6 +10,9 @@ from django.dispatch import receiver
 # detecta se estamos rodando "manage.py test"
 TESTING = 'test' in sys.argv
 
+def generate_user_token():
+    # usa uuid4 para gerar um token hexadecimal único
+    return uuid.uuid4().hex
 
 #
 # ─── USUÁRIO (schema: usuario) ────────────────────────────────────────────
@@ -16,30 +21,53 @@ class UserManager(BaseUserManager):
     def create_user(self, matricula, password=None):
         if not matricula:
             raise ValueError("A matrícula é obrigatória")
-        user = self.model(matricula=matricula)
+        user = self.model(
+            matricula=matricula,
+            token=generate_user_token()
+        )
         if password:
             user.set_password(password)
+        user.is_active = True
         user.save(using=self._db)
         return user
 
     def create_superuser(self, matricula, password):
         user = self.create_user(matricula, password)
-        user.is_superuser = True
         user.is_staff = True
+        user.is_superuser = True
+        user.save(using=self._db)
         return user
 
 
+
 class User(AbstractBaseUser, PermissionsMixin):
-    id         = models.AutoField(primary_key=True, db_column='id')
-    matricula  = models.CharField(max_length=255, unique=True, db_column='matricula')
-    password   = models.TextField(db_column='senha')
-    token      = models.TextField(null=True, blank=True, db_column='token')
-    is_active  = models.BooleanField(db_column='is_active')
-    is_staff   = models.BooleanField(db_column='is_staff')
-    is_superuser = models.BooleanField(db_column='is_superuser')
-    last_login   = models.DateTimeField(null=True, blank=True, db_column='last_login')
-    created_at = models.DateTimeField(null=True, blank=True, db_column='createdat')
-    updated_at = models.DateTimeField(null=True, blank=True, db_column='updatedat')
+    id          = models.AutoField(primary_key=True, db_column='id')
+    matricula   = models.CharField(max_length=255, unique=True, db_column='matricula')
+    password    = models.TextField(db_column='senha')
+    token       = models.CharField(
+        max_length=64,
+        default=generate_user_token,
+        editable=False,
+        db_column='token'
+    )
+    created_at  = models.DateTimeField(
+        auto_now_add=True,
+        db_column='createdat'
+    )
+    updated_at  = models.DateTimeField(
+        auto_now=True,
+        db_column='updatedat'
+    )
+    last_login  = models.DateTimeField(
+        blank=True,
+        null=True,
+        db_column='last_login'
+    )
+    # Flags do PermissionsMixin:
+    is_active   = models.BooleanField(default=True, db_column='is_active')
+    is_staff    = models.BooleanField(default=False, db_column='is_staff')
+    is_superuser= models.BooleanField(default=False, db_column='is_superuser')
+
 
     objects = UserManager()
 
@@ -52,30 +80,48 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.matricula
-
+    
+LEVEL_CHOICES = [
+    ('admin',     'Administrador'),
+    ('instrutor', 'Instrutor'),
+    ('aluno',     'Aluno'),
+]
 
 class Perfil(models.Model):
     id    = models.AutoField(primary_key=True, db_column='id')
-    nivel = models.CharField(max_length=20, db_column='nivel')
-    area  = models.TextField(null=True, blank=True, db_column='area')
+    nivel = models.CharField(
+        max_length=20,
+        choices=LEVEL_CHOICES,
+        db_column='nivel'
+    )
+    area  = models.TextField(
+        null=True,
+        blank=True,
+        db_column='area'
+    )
 
     class Meta:
         db_table = 'perfis' if TESTING else '"usuario"."perfis"'
         managed  = TESTING
 
     def __str__(self):
-        return self.nivel
+        # mostra o label legível em vez do código
+        return self.get_nivel_display()
 
 
 class UsuarioPerfil(models.Model):
     id       = models.AutoField(primary_key=True, db_column='id')
     usuario  = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        db_column='idusuario', related_name='perfil_legacy'
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        db_column='idusuario',
+        related_name='perfil_legacy'
     )
     perfil   = models.ForeignKey(
-        Perfil, on_delete=models.CASCADE,
-        db_column='idperfil', related_name='vinculos'
+        Perfil,
+        on_delete=models.CASCADE,
+        db_column='idperfil',
+        related_name='vinculos'
     )
 
     class Meta:
@@ -83,14 +129,15 @@ class UsuarioPerfil(models.Model):
         managed  = TESTING
 
     def __str__(self):
-        return f"{self.usuario.matricula} → {self.perfil.nivel}"
+        return f"{self.usuario.matricula} → {self.perfil.get_nivel_display()}"
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def criar_usuario_perfil_legacy(sender, instance, created, **kwargs):
     if created:
         perfil_default, _ = Perfil.objects.get_or_create(
-            nivel='aluno', defaults={'area': ''}
+            nivel='aluno',
+            defaults={'area': ''}
         )
         UsuarioPerfil.objects.create(usuario=instance, perfil=perfil_default)
 

@@ -171,7 +171,16 @@ REST_FRAMEWORK = {
     )
 }
 
+from datetime import timedelta
 
+SIMPLE_JWT = {
+    # seus outros ajustes…
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+
+    # <<< ativa o update automático de last_login no usuário
+    'UPDATE_LAST_LOGIN': True,
+}
 # Configurações do Amazon S3 e keys
 #isso nao é seguro, mas é para fins de estudo!!!!!!!!!!!
 AWS_ACCESS_KEY_ID = 'AKIAYKN45N4R7CQIRDV7'
