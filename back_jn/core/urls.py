@@ -10,9 +10,11 @@ from .views import (
     TrilhaViewSet,
     ModuloViewSet,
     ModuloVideoViewSet,
-    UsuarioTrilhaViewSet
+    UsuarioTrilhaViewSet,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .views import CustomTokenView
+
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
@@ -27,7 +29,7 @@ router.register(r'usuario-trilhas', UsuarioTrilhaViewSet, basename='usuariotrilh
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('login/', CustomTokenView.as_view(), name='login'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('upload-video/', UploadVideoView.as_view(), name='upload-video'),
 ]

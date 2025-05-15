@@ -11,13 +11,36 @@ from .models import (
 )
 
 # ─── Usuário  ─────────────────────────────────────────────────────────────
+class UserCreateSerializer(serializers.ModelSerializer):
+    nivel = serializers.CharField(write_only=True)
+    area = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'matricula', 'nome' ,'password', 'nivel', 'area']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        nivel = validated_data.pop('nivel')
+        area = validated_data.pop('area', '')
+
+        pwd = validated_data.pop('password')
+        user = User.objects.create(**validated_data)
+        user.set_password(pwd)
+        user.save()
+
+        perfil, _ = Perfil.objects.get_or_create(nivel=nivel, area=area)
+        UsuarioPerfil.objects.create(usuario=user, perfil=perfil)
+
+        return user
+
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
         fields = [
-            'id', 'matricula', 'password', 'token',
+            'id', 'matricula',' nome', 'password', 'token',
             'is_active', 'is_staff', 'is_superuser',
             'last_login', 'created_at', 'updated_at',
         ]

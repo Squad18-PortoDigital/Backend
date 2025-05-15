@@ -43,6 +43,7 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     id          = models.AutoField(primary_key=True, db_column='id')
     matricula   = models.CharField(max_length=255, unique=True, db_column='matricula')
+    nome = models.CharField(max_length=255, db_column='nome', null=True, blank=True)
     password    = models.TextField(db_column='senha')
     token       = models.CharField(
         max_length=64,
@@ -131,15 +132,17 @@ class UsuarioPerfil(models.Model):
     def __str__(self):
         return f"{self.usuario.matricula} → {self.perfil.get_nivel_display()}"
 
-
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+#@receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def criar_usuario_perfil_legacy(sender, instance, created, **kwargs):
     if created:
-        perfil_default, _ = Perfil.objects.get_or_create(
-            nivel='aluno',
-            defaults={'area': ''}
-        )
-        UsuarioPerfil.objects.create(usuario=instance, perfil=perfil_default)
+        perfil_default = Perfil.objects.filter(nivel='aluno').first()
+
+        if perfil_default:
+            UsuarioPerfil.objects.create(usuario=instance, perfil=perfil_default)
+        else:
+            # Caso ainda não exista nenhum perfil aluno, cria um genérico
+            perfil_default = Perfil.objects.create(nivel='aluno', area='')
+            UsuarioPerfil.objects.create(usuario=instance, perfil=perfil_default)
 
 
 #

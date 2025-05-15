@@ -5,6 +5,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework.response import Response
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .permissions import IsAdmin, IsInstrutor, IsAluno, IsAdminOrInstrutor
+from .permissions import IsAdminOrInstrutor  
 
 from .models import (
     User,
@@ -27,24 +32,61 @@ from .serializers import (
     ModuloSerializer,
     ModuloVideoSerializer,
     UsuarioTrilhaAprendizagemSerializer,
+    UserCreateSerializer
 )
 from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt
 import json
 
+
+
+# ----------------------------------------------------
+#  autenticação
+# ----------------------------------------------------
+
+
+class CustomTokenSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        return super().get_token(user)
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        user = self.user
+
+        data['id_usuario'] = user.id
+        data['nome'] = user.nome
+
+        try:
+            data['nivel'] = user.perfil_legacy.perfil.nivel
+        except:
+            data['nivel'] = None
+
+        return data
+
+class CustomTokenView(TokenObtainPairView):
+    serializer_class = CustomTokenSerializer
 
 # ----------------------------------------------------
 # Usuário
 # ----------------------------------------------------
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        return UserSerializer
+
 
     def get_permissions(self):
-        if self.action in ['create', 'destroy', 'list']:
+        if self.action == 'create':
+            return [IsAuthenticated(), IsAdminOrInstrutor()]
+        if self.action in ['destroy', 'list']:
             return [permissions.IsAdminUser()]
         if self.action in ['retrieve', 'update', 'partial_update']:
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated()]
+
 
     def update(self, request, *args, **kwargs):
         if not request.user.is_staff and int(kwargs['pk']) != request.user.id:
@@ -60,6 +102,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
+
 
 
 # ----------------------------------------------------
@@ -96,7 +139,12 @@ class UsuarioPerfilViewSet(viewsets.ModelViewSet):
 class VideoViewSet(viewsets.ModelViewSet):
     queryset = VideoAprendizagem.objects.all()
     serializer_class = VideoAprendizagemSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'gerar_quiz']:
+            return [IsAuthenticated(), IsAdminOrInstrutor()]
+        return [IsAuthenticatedOrReadOnly()]
+
 
     @action(detail=True, methods=['get'], url_path='transcricao')
     def get_transcricao(self, request, pk=None):
@@ -155,16 +203,18 @@ class VideoViewSet(viewsets.ModelViewSet):
 
 
 class QuizViewSet(viewsets.ModelViewSet):
-    """
-    CRUD de quizzes associados a vídeos.
-    """
     queryset = QuizAprendizagem.objects.all()
     serializer_class = QuizAprendizagemSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminOrInstrutor()]
+        return [IsAuthenticatedOrReadOnly()]
 
 
 class UploadVideoView(APIView):
     parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated, IsAdminOrInstrutor]
 
     def post(self, request):
         video_file = request.FILES.get('video')
@@ -203,19 +253,34 @@ class UploadVideoView(APIView):
 class TrilhaViewSet(viewsets.ModelViewSet):
     queryset = Trilha.objects.all()
     serializer_class = TrilhaSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminOrInstrutor()]
+        return [IsAuthenticatedOrReadOnly()]
+
 
 
 class ModuloViewSet(viewsets.ModelViewSet):
     queryset = Modulo.objects.all()
     serializer_class = ModuloSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminOrInstrutor()]
+        return [IsAuthenticatedOrReadOnly()]
+
 
 
 class ModuloVideoViewSet(viewsets.ModelViewSet):
     queryset = ModuloVideo.objects.all()
     serializer_class = ModuloVideoSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminOrInstrutor()]
+        return [IsAuthenticatedOrReadOnly()]
+
 
 
 class UsuarioTrilhaViewSet(viewsets.ModelViewSet):
