@@ -2,8 +2,8 @@ from rest_framework import serializers
 from django.conf import settings
 from .models import (
     User, Perfil, UsuarioPerfil,
-    Trilha, Modulo, VideoAprendizagem, QuizAprendizagem,
-    ModuloVideo, UsuarioTrilhaAprendizagem,
+    Trilha, Curso, VideoAprendizagem, QuizAprendizagem,
+    CursoVideo, UsuarioTrilhaAprendizagem,
     Certificado,
     ConquistaModule, ConquistaQuiz, ConquistaTrilha, Ponto,
     Recompensa, Resgate,
@@ -36,11 +36,13 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
+    nivel = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
-            'id', 'matricula',' nome', 'password', 'token',
+            'id', 'matricula','nome', 'password', 'token',
+            'nivel', 
             'is_active', 'is_staff', 'is_superuser',
             'last_login', 'created_at', 'updated_at',
         ]
@@ -51,6 +53,12 @@ class UserSerializer(serializers.ModelSerializer):
         user.set_password(pwd)
         user.save()
         return user
+    
+    def get_nivel(self, obj):
+        try:
+            return obj.perfil_legacy.perfil.nivel
+        except:
+            return None
 
 class PerfilSerializer(serializers.ModelSerializer):
     class Meta:
@@ -79,31 +87,42 @@ class TrilhaSerializer(serializers.ModelSerializer):
         model = Trilha
         fields = ['id', 'titulo', 'created_at', 'updated_at']
 
-class ModuloSerializer(serializers.ModelSerializer):
+class CursoSerializer(serializers.ModelSerializer):
     trilha = TrilhaSerializer(read_only=True)
     idtrilha = serializers.PrimaryKeyRelatedField(write_only=True, source='trilha', queryset=Trilha.objects.all())
 
     class Meta:
-        model = Modulo
+        model = Curso
         fields = ['id', 'titulo', 'descricao', 'idtrilha', 'trilha', 'created_at', 'updated_at']
 
 class VideoAprendizagemSerializer(serializers.ModelSerializer):
+    curso_id = serializers.PrimaryKeyRelatedField(
+        write_only=True, queryset=Curso.objects.all(), required=False
+    )
+
     class Meta:
         model = VideoAprendizagem
-        fields = ['id', 'titulo', 'descricao', 'link', 'legenda', 'duracao', 'hql', 'created_at', 'updated_at']
+        fields = ['id', 'titulo', 'descricao', 'link', 'curso_id']  # add se quiser
 
+    def create(self, validated_data):
+        curso = validated_data.pop('curso_id', None)
+        video = VideoAprendizagem.objects.create(**validated_data)
+        if curso:
+            CursoVideo.objects.create(curso=curso, video=video)
+        return video
+    
 class QuizAprendizagemSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuizAprendizagem
         fields = ['id', 'questions', 'responses']
 
-class ModuloVideoSerializer(serializers.ModelSerializer):
-    modulo = serializers.PrimaryKeyRelatedField(queryset=Modulo.objects.all())
+class CursoVideoSerializer(serializers.ModelSerializer):
+    curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all())
     video = serializers.PrimaryKeyRelatedField(queryset=VideoAprendizagem.objects.all())
 
     class Meta:
-        model = ModuloVideo
-        fields = ['id', 'modulo', 'video']
+        model = CursoVideo
+        fields = ['id', 'curso', 'video']
 
 class UsuarioTrilhaAprendizagemSerializer(serializers.ModelSerializer):
     usuario = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
@@ -125,7 +144,7 @@ class CertificadoSerializer(serializers.ModelSerializer):
 class ConquistaModuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConquistaModule
-        fields = ['id', 'idmodulo', 'pontuacao', 'tipo', 'descricao']
+        fields = ['id', 'idcurso', 'pontuacao', 'tipo', 'descricao']
 
 class ConquistaQuizSerializer(serializers.ModelSerializer):
     class Meta:

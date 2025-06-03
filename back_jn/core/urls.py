@@ -6,25 +6,25 @@ from .views import (
     UsuarioPerfilViewSet,
     VideoViewSet,
     QuizViewSet,
-    UploadVideoView,
     TrilhaViewSet,
-    ModuloViewSet,
-    ModuloVideoViewSet,
+    CursoViewSet,
+    CursoVideoViewSet,
     UsuarioTrilhaViewSet,
+    UploadVideoView,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import CustomTokenView
 
 
 router = DefaultRouter()
-router.register(r'users', UserViewSet, basename='user')
+router.register(r'usuarios', UserViewSet, basename='usuario')
 router.register(r'perfis', PerfilViewSet, basename='perfil')
 router.register(r'usuario-perfis', UsuarioPerfilViewSet, basename='usuario-perfil')
 router.register(r'videos', VideoViewSet, basename='video')
 router.register(r'quizzes', QuizViewSet, basename='quiz')
 router.register(r'trilhas', TrilhaViewSet, basename='trilha')
-router.register(r'modulos', ModuloViewSet, basename='modulo')
-router.register(r'modulo-videos', ModuloVideoViewSet, basename='modulovideo')
+router.register(r'cursos', CursoViewSet, basename='curso')
+router.register(r'curso-videos', CursoVideoViewSet, basename='cursovideo')
 router.register(r'usuario-trilhas', UsuarioTrilhaViewSet, basename='usuariotrilha')
 
 urlpatterns = [

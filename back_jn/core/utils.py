@@ -4,6 +4,10 @@ import uuid
 import requests
 from openai import OpenAI
 from django.conf import settings
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
+
+from urllib.parse import urlparse, parse_qs
 
 def upload_video_to_s3(file, filename):
     s3 = boto3.client(
@@ -84,5 +88,36 @@ Responda **somente** com um JSON válido. **Não adicione explicações, título
     )
 
     return response.choices[0].message.content.strip()
+
+
+
+from urllib.parse import urlparse, parse_qs
+from youtube_transcript_api import YouTubeTranscriptApi
+
+def extrair_video_id(link):
+    parsed = urlparse(link)
+    if 'youtube' in parsed.netloc and parsed.path == '/watch':
+        return parse_qs(parsed.query).get('v', [None])[0]
+    if 'youtu.be' in parsed.netloc:
+        return parsed.path.strip('/').split('?')[0]
+    if 'youtube' in parsed.netloc and parsed.path.startswith('/embed/'):
+        return parsed.path.split('/embed/')[-1].split('?')[0]
+    return None
+
+def extrair_transcricao_automatica(video):
+    video_id = extrair_video_id(video.link)
+    if not video_id:
+        raise ValueError("Link inválido do YouTube")
+
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['pt', 'pt-BR', 'en'])
+        texto = " ".join([item['text'] for item in transcript])
+        video.hql = texto
+        video.save()
+        return texto
+    except Exception as e:
+        raise Exception(f"Erro ao obter transcrição: {e}")
+
+
 
 

@@ -149,7 +149,7 @@ def criar_usuario_perfil_legacy(sender, instance, created, **kwargs):
 # ─── APRENDIZAGEM (schema: aprendizagem) ────────────────────────────────────────
 #
 class Trilha(models.Model):
-    id         = models.IntegerField(primary_key=True, db_column='id')
+    id = models.AutoField(primary_key=True, db_column='id')
     titulo     = models.TextField(db_column='titulo')
     created_at = models.DateTimeField(db_column='createdat')
     updated_at = models.DateTimeField(db_column='updatedat')
@@ -162,19 +162,19 @@ class Trilha(models.Model):
         return self.titulo
 
 
-class Modulo(models.Model):
-    id         = models.IntegerField(primary_key=True, db_column='id')
+class Curso(models.Model):
+    id         = models.AutoField(primary_key=True, db_column='id')
     titulo     = models.TextField(db_column='titulo')
     descricao  = models.TextField(db_column='descricao', blank=True, null=True)
     trilha     = models.ForeignKey(
         Trilha, on_delete=models.CASCADE,
-        related_name='modulos', db_column='idtrilha'
+        related_name='cursos', db_column='idtrilha'
     )
     created_at = models.DateTimeField(db_column='createdat')
     updated_at = models.DateTimeField(db_column='updatedat')
 
     class Meta:
-        db_table = 'modulos' if TESTING else '"aprendizagem"."modulos"'
+        db_table = 'cursos' if TESTING else '"aprendizagem"."cursos"'
         managed  = TESTING
 
     def __str__(self):
@@ -182,7 +182,7 @@ class Modulo(models.Model):
 
 
 class VideoAprendizagem(models.Model):
-    id          = models.IntegerField(primary_key=True, db_column='id')
+    id          = models.AutoField(primary_key=True, db_column='id')
     titulo      = models.TextField(db_column='titulo')
     descricao   = models.TextField(db_column='descricao', blank=True, null=True)
     link        = models.TextField(db_column='link')
@@ -213,24 +213,24 @@ class QuizAprendizagem(models.Model):
         return f"Quiz #{self.id}"
 
 
-class ModuloVideo(models.Model):
-    id      = models.IntegerField(primary_key=True, db_column='id')
-    modulo  = models.ForeignKey(
-        Modulo, on_delete=models.CASCADE,
-        related_name='videos', db_column='idmodulo'
+class CursoVideo(models.Model):
+    id      = models.AutoField(primary_key=True, db_column='id')
+    curso  = models.ForeignKey(
+        Curso, on_delete=models.CASCADE,
+        related_name='videos', db_column='idcurso'
     )
     video   = models.ForeignKey(
         VideoAprendizagem, on_delete=models.CASCADE,
-        related_name='modulos_video', db_column='idvideo'
+        related_name='cursos_video', db_column='idvideo'
     )
 
     class Meta:
-        db_table = 'modulovideo' if TESTING else '"aprendizagem"."modulovideo"'
+        db_table = 'cursovideo' if TESTING else '"aprendizagem"."cursovideo"'
         managed  = TESTING
-        unique_together = (('modulo', 'video'),)
+        unique_together = (('curso', 'video'),)
 
     def __str__(self):
-        return f"{self.modulo.titulo} → {self.video.titulo}"
+        return f"{self.curso.titulo} → {self.video.titulo}"
 
 
 class UsuarioTrilhaAprendizagem(models.Model):
@@ -280,7 +280,7 @@ class Certificado(models.Model):
 #
 class ConquistaModule(models.Model):
     id         = models.IntegerField(primary_key=True, db_column='id')
-    idmodulo   = models.IntegerField(db_column='idmodulo')
+    idcurso   = models.IntegerField(db_column='idcurso')
     pontuacao  = models.IntegerField(db_column='pontuacao')
     tipo       = models.TextField(db_column='tipo')
     descricao  = models.TextField(db_column='descricao')

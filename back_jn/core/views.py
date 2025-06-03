@@ -18,8 +18,8 @@ from .models import (
     VideoAprendizagem,
     QuizAprendizagem,
     Trilha,
-    Modulo,
-    ModuloVideo,
+    Curso,
+    CursoVideo,
     UsuarioTrilhaAprendizagem,
 )
 from .serializers import (
@@ -29,14 +29,13 @@ from .serializers import (
     VideoAprendizagemSerializer,
     QuizAprendizagemSerializer,
     TrilhaSerializer,
-    ModuloSerializer,
-    ModuloVideoSerializer,
+    CursoSerializer,
+    CursoVideoSerializer,
     UsuarioTrilhaAprendizagemSerializer,
     UserCreateSerializer
 )
-from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt
+from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt, extrair_transcricao_automatica
 import json
-
 
 
 # ----------------------------------------------------
@@ -164,6 +163,19 @@ class VideoViewSet(viewsets.ModelViewSet):
             "quiz": quiz.responses
         })
 
+    @action(detail=True, methods=['post'], url_path='extrair-transcricao')
+    def extrair_transcricao(self, request, pk=None):
+        video = self.get_object()
+
+        try:
+            texto = extrair_transcricao_automatica(video)
+            return Response({
+                "mensagem": "Transcrição extraída com sucesso!",
+                "transcricao": texto
+            }, status=200)
+        except Exception as e:
+            return Response({"erro": str(e)}, status=500)
+    
     @action(detail=True, methods=['post'], url_path='gerar-quiz')
     def gerar_quiz(self, request, pk=None):
         video = self.get_object()
@@ -191,11 +203,20 @@ class VideoViewSet(viewsets.ModelViewSet):
                 status=500
             )
 
+        if isinstance(quiz_json, dict):
+            questions = quiz_json.get('questions', [])
+            responses = quiz_json.get('responses', [])
+        else:
+            # fallback: assume que quiz_json é lista de perguntas
+            questions = quiz_json
+            responses = quiz_json
+
         quiz = QuizAprendizagem.objects.create(
             id=video.id,
-            questions=quiz_json.get('questions', []),
-            responses=quiz_json.get('responses', []),
+            questions=questions,
+            responses=responses,
         )
+
         return Response({
             "mensagem": "Quiz gerado com sucesso!",
             "quiz": quiz.responses
@@ -259,22 +280,36 @@ class TrilhaViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdminOrInstrutor()]
         return [IsAuthenticatedOrReadOnly()]
 
+    @action(detail=True, methods=['get'], url_path='cursos')
+    def listar_cursos(self, request, pk=None):
+        trilha = self.get_object()
+        cursos = trilha.cursos.all()
+        serializer = CursoSerializer(cursos, many=True)
+        return Response(serializer.data)
 
-
-class ModuloViewSet(viewsets.ModelViewSet):
-    queryset = Modulo.objects.all()
-    serializer_class = ModuloSerializer
+class CursoViewSet(viewsets.ModelViewSet):
+    queryset = Curso.objects.all()
+    serializer_class = CursoSerializer
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsAdminOrInstrutor()]
         return [IsAuthenticatedOrReadOnly()]
+    
+    @action(detail=True, methods=['get'], url_path='videos')
+    def listar_videos(self, request, pk=None):
+        curso = self.get_object()
+        # pega os vídeos reais ligados ao curso via relação intermediária
+        videos = VideoAprendizagem.objects.filter(cursos_video__curso=curso)
+        serializer = VideoAprendizagemSerializer(videos, many=True)
+        return Response(serializer.data)
 
 
 
-class ModuloVideoViewSet(viewsets.ModelViewSet):
-    queryset = ModuloVideo.objects.all()
-    serializer_class = ModuloVideoSerializer
+
+class CursoVideoViewSet(viewsets.ModelViewSet):
+    queryset = CursoVideo.objects.all()
+    serializer_class = CursoVideoSerializer
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
