@@ -6,6 +6,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from datetime import timedelta
 
 # detecta se estamos rodando "manage.py test"
 TESTING = 'test' in sys.argv
@@ -153,7 +154,27 @@ class Trilha(models.Model):
     titulo     = models.TextField(db_column='titulo')
     created_at = models.DateTimeField(db_column='createdat')
     updated_at = models.DateTimeField(db_column='updatedat')
+    criador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='criador'
+    )
 
+    @property
+    def duracao_total(self):
+        videos = VideoAprendizagem.objects.filter(cursos_video__curso__trilha=self).distinct()
+        total = timedelta()
+        for video in videos:
+            if video.duracao:
+                total += video.duracao
+        return int(total.total_seconds() // 60)  # em minutos
+    
+    @property
+    def jcoins(self):
+        return self.duracao_total
+    
     class Meta:
         db_table = 'trilhas' if TESTING else '"aprendizagem"."trilhas"'
         managed  = TESTING

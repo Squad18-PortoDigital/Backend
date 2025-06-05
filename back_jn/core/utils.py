@@ -2,11 +2,14 @@ import boto3
 import time
 import uuid
 import requests
+import re
 from openai import OpenAI
 from django.conf import settings
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
-
+# from pytube import YouTube
+import yt_dlp
+from datetime import timedelta
 from urllib.parse import urlparse, parse_qs
 
 def upload_video_to_s3(file, filename):
@@ -120,4 +123,22 @@ def extrair_transcricao_automatica(video):
 
 
 
+def obter_duracao_video_youtube(link):
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            info = ydl.extract_info(link, download=False)
+            segundos = info.get("duration")
+            if segundos is not None:
+                return timedelta(seconds=segundos)
+    except Exception as e:
+        print(f"[DEBUG] Erro ao obter duração com yt_dlp: {e}")
+        return None
 
+def limpar_link_youtube(link):
+    # Extrai só o ID do vídeo
+    match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', link)
+    if not match:
+        raise ValueError("Link inválido do YouTube")
+
+    video_id = match.group(1)
+    return f"https://www.youtube.com/watch?v={video_id}"

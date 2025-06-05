@@ -83,9 +83,20 @@ class QuizSerializer(serializers.ModelSerializer):
 
 # ─── Aprendizagem ───────────────────────────────────────────────────────────────
 class TrilhaSerializer(serializers.ModelSerializer):
+    duracao_total = serializers.SerializerMethodField()
+    jcoins = serializers.SerializerMethodField()
+    criador_nome = serializers.CharField(source='criador.nome', read_only=True)
+
     class Meta:
         model = Trilha
-        fields = ['id', 'titulo', 'created_at', 'updated_at']
+        fields = ['id', 'titulo', 'created_at', 'updated_at', 'criador', 'duracao_total', 'jcoins', 'criador_nome']
+
+    def get_duracao_total(self, obj):
+        return obj.duracao_total
+
+    def get_jcoins(self, obj):
+        return obj.jcoins
+
 
 class CursoSerializer(serializers.ModelSerializer):
     trilha = TrilhaSerializer(read_only=True)
@@ -99,10 +110,12 @@ class VideoAprendizagemSerializer(serializers.ModelSerializer):
     curso_id = serializers.PrimaryKeyRelatedField(
         write_only=True, queryset=Curso.objects.all(), required=False
     )
+    duracao = serializers.DurationField(read_only=True)
 
     class Meta:
         model = VideoAprendizagem
-        fields = ['id', 'titulo', 'descricao', 'link', 'curso_id']  # add se quiser
+        fields = ['id', 'titulo', 'descricao', 'link', 'curso_id', 'duracao']
+        read_only_fields = ['duracao']
 
     def create(self, validated_data):
         curso = validated_data.pop('curso_id', None)

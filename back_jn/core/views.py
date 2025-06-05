@@ -34,7 +34,7 @@ from .serializers import (
     UsuarioTrilhaAprendizagemSerializer,
     UserCreateSerializer
 )
-from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt, extrair_transcricao_automatica
+from .utils import upload_video_to_s3, start_transcription_job, generate_quiz_gpt, extrair_transcricao_automatica, obter_duracao_video_youtube, limpar_link_youtube
 import json
 
 
@@ -144,6 +144,12 @@ class VideoViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdminOrInstrutor()]
         return [IsAuthenticatedOrReadOnly()]
 
+    def perform_create(self, serializer):
+        link = self.request.data.get('link')
+        duracao = obter_duracao_video_youtube(link)
+        print(f"[DEBUG] Duração obtida: {duracao}")
+        serializer.save(duracao=duracao)
+
 
     @action(detail=True, methods=['get'], url_path='transcricao')
     def get_transcricao(self, request, pk=None):
@@ -166,7 +172,6 @@ class VideoViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='extrair-transcricao')
     def extrair_transcricao(self, request, pk=None):
         video = self.get_object()
-
         try:
             texto = extrair_transcricao_automatica(video)
             return Response({
@@ -175,7 +180,7 @@ class VideoViewSet(viewsets.ModelViewSet):
             }, status=200)
         except Exception as e:
             return Response({"erro": str(e)}, status=500)
-    
+
     @action(detail=True, methods=['post'], url_path='gerar-quiz')
     def gerar_quiz(self, request, pk=None):
         video = self.get_object()
@@ -186,7 +191,6 @@ class VideoViewSet(viewsets.ModelViewSet):
 
         try:
             quiz_raw = generate_quiz_gpt(video.hql)
-            # limpa possíveis backticks markdown
             if quiz_raw.startswith("```"):
                 quiz_raw = quiz_raw.strip("`").strip()
                 if quiz_raw.startswith("json"):
@@ -207,7 +211,6 @@ class VideoViewSet(viewsets.ModelViewSet):
             questions = quiz_json.get('questions', [])
             responses = quiz_json.get('responses', [])
         else:
-            # fallback: assume que quiz_json é lista de perguntas
             questions = quiz_json
             responses = quiz_json
 
@@ -221,6 +224,7 @@ class VideoViewSet(viewsets.ModelViewSet):
             "mensagem": "Quiz gerado com sucesso!",
             "quiz": quiz.responses
         }, status=201)
+
 
 
 class QuizViewSet(viewsets.ModelViewSet):

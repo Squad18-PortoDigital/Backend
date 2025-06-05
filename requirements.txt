@@ -7,6 +7,7 @@ certifi==2025.1.31
 chardet==5.2.0
 charset-normalizer==3.4.1
 colorama==0.4.6
+defusedxml==0.7.1
 distro==1.9.0
 Django==5.1.7
 djangorestframework==3.15.2
@@ -24,6 +25,7 @@ pydantic==2.10.6
 pydantic_core==2.27.2
 PyJWT==2.9.0
 python-dateutil==2.9.0.post0
+pytube==15.0.0
 reportlab==4.4.0
 requests==2.32.3
 s3transfer==0.11.4
@@ -34,3 +36,5 @@ tqdm==4.67.1
 typing_extensions==4.13.0
 tzdata==2025.1
 urllib3==2.3.0
+youtube-transcript-api==1.0.3
+yt-dlp==2025.5.22
